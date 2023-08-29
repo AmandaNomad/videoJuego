@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>GAME</title>
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.11.0/dist/phaser.js"></script>
+    <style type="text/css">
+        body {
+            margin: 0;
+        }
+    </style>
+    <link rel="icon" href="assets/mono.png" type="image/x-icon">
+</head>
+
+<body>
+
+    <script type="text/javascript">
+
+        // En esta sección, se define la configuración principal del juego, como el tipo de renderizado (Phaser.AUTO), el ancho y alto de la pantalla (1530x1200), el motor de física arcade, y las funciones para cargar, crear y actualizar el juego.
+        var config = {
+            type: Phaser.AUTO,
+            width: 1530,
+            height: 1200,
+            physics: {
+                default: 'arcade',
+                arcade: {
+                    gravity: { y: 200 },
+                    debug: false
+                }
+            },
+            scene: {
+                preload: preload,
+                create: create,
+                update: update
+            }
+        };
+
+        var game = new Phaser.Game(config);
+        var player;
+        var monkey;
+        var score = 0;
+        var gameOver = false;
+        var scoreText;
+        var timeLeft = 25;
+        var timerText;
+
+        //En esta función se cargan los recursos del juego, como las imágenes de fondo y los spritesheets. En este caso, se carga una imagen de fondo y un spritesheet que contiene los frames para el mono.
+        function preload() {
+            this.load.image('fondo', 'assets/fondo.png');
+            this.load.spritesheet('mono', 'assets/mono.png', { frameWidth: 64, frameHeight: 96 });
+        }
+
+        //Aquí se crea todo el contenido del juego. Se agrega una imagen de fondo, se crea el personaje principal (mono) como un sprite con propiedades como el rebote, los límites del mundo y la escala.
+
+        function create() {
+            this.add.image(800, 420, 'fondo').setScale(0.99);
+
+            // Crear al personaje principal (mono)
+            player = this.physics.add.sprite(800, 600, 'mono');
+            player.setBounce(0.2);
+            player.setCollideWorldBounds(true);
+            player.setScale(2.5); // Ajusta el tamaño del personaje
+
+
+            // Definir animaciones
+            //Se definen las animaciones del mono. Hay tres animaciones: "left" (izquierda), "turn" (detener) y "right" (derecha). Cada animación utiliza un conjunto de frames del spritesheet.
+            this.anims.create({
+                key: 'left', //animacion con movimiento hacia la izquierda.
+                frames: this.anims.generateFrameNumbers('mono', { start: 0, end: 2 }), //comienza desde el frame 0 y termina en el fraame 2, secuencia de movimiento.
+                frameRate: 10, //velocidad a la que se reproduce la animacion.
+                repeat: -1
+            });
+            this.anims.create({
+                key: 'turn',
+                frames: [{ key: 'mono', frame: 4 }],
+                frameRate: 20
+            });
+            this.anims.create({
+                key: 'right',
+                frames: this.anims.generateFrameNumbers('mono', { start: 3, end: 6 }),
+                frameRate: 10,
+                repeat: -1
+            });
+
+            //Se crea un grupo de monos utilizando el spritesheet de mono. Cada mono tiene propiedades como el rebote en el eje Y, la velocidad aleatoria y la interactividad para hacer clic en ellos.
+            monkey = this.physics.add.group({
+                key: 'mono',
+                repeat: 9,
+                setXY: { x: 12, y: 0, stepX: 150 }
+            });
+
+            monkey.children.iterate(function (child) {
+                child.setBounceY(Phaser.Math.FloatBetween(0.6, 0.99));
+
+                // Aumenta el tamaño del monito
+                child.setScale(1.5); // Puedes ajustar el valor según lo que necesites
+
+                child.setVelocity(Phaser.Math.Between(-200, 200), Phaser.Math.Between(-200, 200));
+                child.setInteractive();
+                child.on('pointerdown', function () {
+                    collectMonkey(child);
+                });
+            });
+
+            scoreText = this.add.text(16, 16, 'Score: 0', { fontSize: '32px', fill: '#fff' });
+            timerText = this.add.text(config.width - 16, 16, 'Time: ' + timeLeft, { fontSize: '32px', fill: '#fff' }).setOrigin(1, 0);
+
+            // Aquí se implementa un temporizador que disminuye el tiempo restante. Si el tiempo llega a cero, se declara el juego como "gameOver".
+            var countdownInterval = setInterval(function () {
+                if (timeLeft > 0) {
+                    timeLeft -= 1;
+                    timerText.setText('Time: ' + timeLeft);
+                } else {
+                    clearInterval(countdownInterval);
+                    gameOver = true;
+                }
+            }, 1000);
+
+            //Se establece una colisión entre los monos y el jugador, lo que significa que si colisionan, se ejecutará la función de colisión.
+            this.physics.add.collider(monkey, player);
+        }
+
+
+        //En esta función se manejan las actualizaciones del juego en cada cuadro. Se controla el movimiento del jugador, las direcciones en las que rebotan los monos y se verifica si el juego ha terminado.
+        function update() {
+            if (gameOver) {
+                final = this.add.text(600, 300, 'GAME OVER', { fontSize: '64px', fill: '#fff' });
+                return;
+            }
+
+            var cursors = this.input.keyboard.createCursorKeys();
+            if (cursors.left.isDown) {
+                player.setVelocityX(-160);
+                player.anims.play('left', true);
+            } else if (cursors.right.isDown) {
+                player.setVelocityX(160);
+                player.anims.play('right', true);
+            } else {
+                player.setVelocityX(0);
+                player.anims.play('turn');
+            }
+
+            monkey.children.iterate(function (child) {
+                if (child.getBounds().right > config.width || child.getBounds().left < 0) {
+                    child.setVelocityX(-child.body.velocity.x);
+                }
+
+                if (child.getBounds().bottom > config.height || child.getBounds().top < 0) {
+                    child.setVelocityY(-child.body.velocity.y);
+                }
+
+            });
+        }
+
+        //Cuando el jugador hace clic en un mono, se desactiva ese mono, se aumenta la puntuación y, si no quedan monos activos en la pantalla, se reinician y se agrega más tiempo.
+        function collectMonkey(mono) {
+            mono.disableBody(true, true);
+            score += 10;
+            scoreText.setText('Score: ' + score);
+
+            if (monkey.countActive(true) === 0 && !gameOver) {
+                timeLeft += 15;
+                monkey.children.iterate(function (child) {
+                    if (!child.active) {
+                        child.enableBody(true, child.x, 0, true, true);
+                        child.setVelocity(Phaser.Math.Between(-200, 200), Phaser.Math.Between(-200, 200));
+                    }
+                });
+            }
+        }
+    </script>
+
+</body>
+
+</html>
